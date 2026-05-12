@@ -1,0 +1,23 @@
+strategy:
+  name: vwap_reaction
+  timeframe: 5m
+  direction:
+    long: true
+    short: true
+  rr_target: 2.0
+  partial_tp:
+    enabled: true
+    at_r: 1.0
+    close_fraction: 0.5
+    move_stop_to_break_even: true
+  vwap_touch:
+    mode: atr
+    atr_period: 14
+    atr_multiplier: 0.10
+  candle_confirmation:
+    require_close_confirmation: true
+    allow_wick_only_touch: false
+  filters:
+    use_session_filter: true
+    use_cooldown: true
+    cooldown_bars: 8
