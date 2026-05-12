@@ -1,0 +1,114 @@
+//@version=5
+indicator("IndicatorBacktest - VWAP + Key Level Reaction", overlay=true, max_boxes_count=100, max_lines_count=200, max_labels_count=200)
+
+// -------------------- Inputs --------------------
+showVWAP          = input.bool(true, "Show Daily VWAP")
+showKeyLevels     = input.bool(true, "Show Key Levels")
+showSignals       = input.bool(true, "Show Signal Labels")
+useSessionFilter  = input.bool(false, "Use London/NY Session Filter")
+wickOnlyTouch     = input.bool(false, "Allow Wick-Only VWAP Touch")
+
+rrTarget          = input.float(2.0, "RR Target", step=0.25, minval=0.5)
+atrPeriod         = input.int(14, "ATR Period", minval=2)
+atrTouchMult      = input.float(0.10, "VWAP Touch ATR Mult", step=0.01)
+minReactionATR    = input.float(0.20, "Key Level Min Reaction (ATR)", step=0.01)
+cooldownBars      = input.int(8, "Cooldown Bars", minval=0)
+
+londonSession     = input.session("0700-1600", "London Session (UTC)")
+newyorkSession    = input.session("1300-2200", "New York Session (UTC)")
+
+// -------------------- Helpers --------------------
+inSession(sess) => not na(time(timeframe.period, sess, "UTC"))
+sessionOk = not useSessionFilter or inSession(londonSession) or inSession(newyorkSession)
+
+atr = ta.atr(atrPeriod)
+vwapD = ta.vwap(hlc3)
+
+// -------------------- Key Levels --------------------
+// Previous week high/low
+pwh = request.security(syminfo.tickerid, "W", high[1], lookahead=barmerge.lookahead_off)
+pwl = request.security(syminfo.tickerid, "W", low[1], lookahead=barmerge.lookahead_off)
+
+// Monday range (captured from current week Monday candles)
+var float monHigh = na
+var float monLow  = na
+var int weekRef   = na
+
+newWeek = ta.change(time("W")) != 0
+if newWeek
+    monHigh := na
+    monLow  := na
+    weekRef := weekofyear
+
+isMonday = dayofweek == dayofweek.monday
+if isMonday
+    monHigh := na(monHigh) ? high : math.max(monHigh, high)
+    monLow  := na(monLow)  ? low  : math.min(monLow, low)
+
+mrh = monHigh
+mrl = monLow
+
+// -------------------- VWAP Reaction Logic --------------------
+vwapTouchLong = wickOnlyTouch ? (low <= vwapD + atrTouchMult * atr) : (close <= vwapD + atrTouchMult * atr and close >= vwapD - atrTouchMult * atr)
+vwapTouchShort = wickOnlyTouch ? (high >= vwapD - atrTouchMult * atr) : (close <= vwapD + atrTouchMult * atr and close >= vwapD - atrTouchMult * atr)
+
+bullReact = close > open and close > vwapD
+bearReact = close < open and close < vwapD
+
+var int lastSignalBar = na
+cooldownOk = na(lastSignalBar) or (bar_index - lastSignalBar > cooldownBars)
+
+vwapLongSignal  = sessionOk and cooldownOk and vwapTouchLong and bullReact
+vwapShortSignal = sessionOk and cooldownOk and vwapTouchShort and bearReact
+
+if vwapLongSignal or vwapShortSignal
+    lastSignalBar := bar_index
+
+// -------------------- Key Level Reaction Logic --------------------
+nearLevel(level) => math.abs(close - level) <= atr * atrTouchMult
+
+reactUpFrom(level) => nearLevel(level) and (close - level) >= atr * minReactionATR and close > open
+reactDownFrom(level) => nearLevel(level) and (level - close) >= atr * minReactionATR and close < open
+
+keyLongSignal = sessionOk and cooldownOk and (
+     reactUpFrom(pwl) or reactUpFrom(mrl)
+)
+
+keyShortSignal = sessionOk and cooldownOk and (
+     reactDownFrom(pwh) or reactDownFrom(mrh)
+)
+
+if keyLongSignal or keyShortSignal
+    lastSignalBar := bar_index
+
+// -------------------- Visuals --------------------
+plot(showVWAP ? vwapD : na, title="Daily VWAP", color=color.new(color.blue, 0), linewidth=2)
+
+plot(showKeyLevels ? pwh : na, title="PWH", color=color.new(color.red, 10), linewidth=1, style=plot.style_linebr)
+plot(showKeyLevels ? pwl : na, title="PWL", color=color.new(color.green, 10), linewidth=1, style=plot.style_linebr)
+plot(showKeyLevels ? mrh : na, title="Monday Range High", color=color.new(color.orange, 0), linewidth=1, style=plot.style_linebr)
+plot(showKeyLevels ? mrl : na, title="Monday Range Low", color=color.new(color.orange, 0), linewidth=1, style=plot.style_linebr)
+
+longSignal = vwapLongSignal or keyLongSignal
+shortSignal = vwapShortSignal or keyShortSignal
+
+plotshape(showSignals and longSignal, title="Long Signal", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), text="LONG", textcolor=color.black, size=size.tiny)
+plotshape(showSignals and shortSignal, title="Short Signal", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), text="SHORT", textcolor=color.white, size=size.tiny)
+
+// Optional projected SL/TP guide (visual only)
+showGuide = input.bool(true, "Show RR Guide on Signal")
+var line slLine = na
+var line tpLine = na
+if showGuide and (longSignal or shortSignal)
+    if not na(slLine)
+        line.delete(slLine)
+    if not na(tpLine)
+        line.delete(tpLine)
+
+    entry = close
+    sl = longSignal ? low : high
+    risk = math.abs(entry - sl)
+    tp = longSignal ? entry + risk * rrTarget : entry - risk * rrTarget
+
+    slLine := line.new(bar_index, sl, bar_index + 20, sl, extend=extend.none, color=color.new(color.red, 0), width=1)
+    tpLine := line.new(bar_index, tp, bar_index + 20, tp, extend=extend.none, color=color.new(color.green, 0), width=1)
