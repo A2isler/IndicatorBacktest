@@ -1,0 +1,23 @@
+strategy:
+  name: key_level_reaction
+  timeframe: 5m
+  levels:
+    monday_range: true
+    previous_week_high: true
+    previous_week_low: true
+    previous_day_high_low: false
+  rr_target: 2.0
+  reaction:
+    timeout_minutes: 15
+    min_reaction_mode: atr
+    min_reaction_atr: 0.20
+  false_breakout_reclaim:
+    enabled: true
+  cooldown:
+    enabled: true
+    bars: 10
+  partial_tp:
+    enabled: true
+    at_r: 1.0
+    close_fraction: 0.5
+    move_stop_to_break_even: true

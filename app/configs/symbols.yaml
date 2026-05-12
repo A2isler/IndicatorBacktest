@@ -1,0 +1,13 @@
+symbols:
+  - id: BTCUSDT
+    asset_class: crypto
+    venue: BINANCE
+  - id: XAUUSD
+    asset_class: metals
+    venue: OANDA
+  - id: XAGUSD
+    asset_class: metals
+    venue: OANDA
+  - id: USOIL
+    asset_class: energy
+    venue: OANDA

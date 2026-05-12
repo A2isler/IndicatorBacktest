@@ -1,0 +1,16 @@
+backtest:
+  initial_capital_usd: 1000
+  commission_rate: 0.0005
+  risk_per_trade: 0.02
+  fill_model: signal_close_next_open
+  slippage_bps: 1.0
+  timezone: UTC
+  sessions:
+    london:
+      enabled: true
+      start: "07:00"
+      end: "16:00"
+    new_york:
+      enabled: true
+      start: "13:00"
+      end: "22:00"

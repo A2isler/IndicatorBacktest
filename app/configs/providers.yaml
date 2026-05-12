@@ -1,0 +1,15 @@
+providers:
+  primary: oanda
+  fallbacks:
+    - binance
+
+  oanda:
+    enabled: true
+    environment: practice
+    granularity_map:
+      5m: M5
+      15m: M15
+
+  binance:
+    enabled: true
+    klines_limit: 1000
